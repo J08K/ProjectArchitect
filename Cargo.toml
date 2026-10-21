@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*"]
+
+[workspace.package]
+version = "0.2.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.95"
+
+[workspace.dependencies]
+pa-core = { path = "crates/core" }
+pa-mcp = { path = "apps/pa-mcp" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+toml = "0.9"
+rusqlite = { version = "0.40", features = ["bundled"] }
+egui = "0.36"
+egui_extras = "0.36"
+egui_dock = "0.21.1"
+eframe = { version = "0.36", default-features = false }
+rfd = "0.17"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = "thin"

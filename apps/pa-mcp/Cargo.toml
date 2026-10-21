@@ -1,0 +1,14 @@
+[package]
+name = "pa-mcp"
+description = "ProjectArchitect MCP server: a stdio JSON-RPC server over the same pa.db as the GUI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+pa-core = { workspace = true }
+serde_json = { workspace = true }

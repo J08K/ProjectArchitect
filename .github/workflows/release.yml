@@ -1,0 +1,91 @@
+name: Release
+
+# Builds the installers as workflow artifacts (D-26, D-27, D-48): on a v* tag, or by hand with an optional version
+# (to try an upgrade with a higher one than Cargo.toml's). A v* tag also gets a GitHub release with both attached,
+# which the app's Settings → Updates installs from (D-49).
+on:
+  push:
+    tags: ["v*"]
+  # Pull requests that change the packaging build the installers too, so they are checked before a release.
+  pull_request:
+    paths:
+      - "wix/**"
+      - "packaging/**"
+      - "assets/**"
+      - "apps/pa/Cargo.toml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (x.y.z); empty = the workspace version"
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  msi:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p pa -p pa-mcp
+      - run: dotnet tool install --global wix --version 5.0.2
+      - name: Build the MSI
+        shell: pwsh
+        run: |
+          $v = $env:VERSION
+          if (-not $v) { $v = ((cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -eq 'pa').version }
+          wix build wix\main.wxs -arch x64 -d Version=$v -d Bin=target\release -o "ProjectArchitect-$v-x64.msi"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: "*.msi"
+
+  rpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - run: dnf -y install gcc git
+      - uses: actions/checkout@v4
+      - name: Rust
+        run: |
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p pa -p pa-mcp
+      - run: cargo install cargo-generate-rpm --locked
+      - name: Build the RPM
+        run: |
+          cargo generate-rpm -p apps/pa ${VERSION:+--set-metadata "version = \"$VERSION\""}
+      - name: Install it and run the binaries
+        run: |
+          dnf -y install ./target/generate-rpm/*.rpm
+          pa-cli tools | head -3
+          printf '{"jsonrpc":"2.0","id":1,"method":"ping"}\n' | pa-mcp --data-dir /tmp/pa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm
+          path: target/generate-rpm/*.rpm
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [msi, rpm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      # The app compares the tag with its own version: a mismatch would offer the same update forever.
+      - name: Tag matches the workspace version
+        run: grep -q "^version = \"${GITHUB_REF_NAME#v}\"" Cargo.toml || { echo "::error::$GITHUB_REF_NAME does not match Cargo.toml's version"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

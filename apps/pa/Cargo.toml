@@ -1,0 +1,42 @@
+[package]
+name = "pa"
+description = "ProjectArchitect: overview of and workspace for all local coding projects"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+default-run = "pa"
+
+[lints]
+workspace = true
+
+[dependencies]
+pa-core = { workspace = true }
+pa-mcp = { workspace = true }
+egui = { workspace = true }
+egui_extras = { workspace = true }
+egui_dock = { workspace = true, features = ["serde"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit"] }
+rfd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+egui-phosphor = "0.14"
+egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
+
+# Fedora RPM (D-27): cargo generate-rpm -p apps/pa, after cargo build --release (all three binaries).
+[package.metadata.generate-rpm]
+name = "projectarchitect"
+summary = "Overview of and workspace for all local coding projects"
+assets = [
+    { source = "target/release/pa", dest = "/usr/bin/pa", mode = "755" },
+    { source = "target/release/pa-mcp", dest = "/usr/bin/pa-mcp", mode = "755" },
+    { source = "target/release/pa-cli", dest = "/usr/bin/pa-cli", mode = "755" },
+    { source = "../../packaging/projectarchitect.desktop", dest = "/usr/share/applications/projectarchitect.desktop", mode = "644" },
+    { source = "../../assets/icon-48.png", dest = "/usr/share/icons/hicolor/48x48/apps/projectarchitect.png", mode = "644" },
+    { source = "../../assets/icon-128.png", dest = "/usr/share/icons/hicolor/128x128/apps/projectarchitect.png", mode = "644" },
+    { source = "../../assets/icon-256.png", dest = "/usr/share/icons/hicolor/256x256/apps/projectarchitect.png", mode = "644" },
+    { source = "../../assets/icon.svg", dest = "/usr/share/icons/hicolor/scalable/apps/projectarchitect.svg", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+git = "*"

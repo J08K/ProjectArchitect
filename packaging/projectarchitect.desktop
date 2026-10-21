@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ProjectArchitect
+Comment=Overview of and workspace for all local coding projects
+Exec=pa
+Icon=projectarchitect
+Terminal=false
+Categories=Development;
+StartupWMClass=projectarchitect

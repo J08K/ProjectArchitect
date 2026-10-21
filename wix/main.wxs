@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-user MSI (D-26, D-48): pa.exe, pa-mcp.exe and pa-cli.exe in %LOCALAPPDATA%\Programs\ProjectArchitect, a
+  Start-menu shortcut, upgrade in place. Built with the WiX v5 dotnet tool from the repository root:
+    wix build wix\main.wxs -arch x64 -d Version=<x.y.z> -d Bin=target\release -o ProjectArchitect.msi
+  The UpgradeCode and component GUIDs never change. Per-user components keep an HKCU value as their key path (ICE38),
+  so WiX cannot derive their GUIDs.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="ProjectArchitect" Manufacturer="ProjectArchitect" Version="$(var.Version)"
+           UpgradeCode="085c959e-d151-4298-a43a-9bcea86968d3" Scope="perUser" Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ProjectArchitect is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="pa.ico" SourceFile="assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="pa.ico" />
+    <!-- Running files (an agent's pa-mcp.exe, the GUI) on install, upgrade and uninstall (D-47, D-48): Restart Manager
+         would close those programs (the agents' MCP server dies), and without it a per-user install fails on them
+         (1310; it cannot schedule a replace at reboot). So SetAside renames our exes to <name>.<n>.old first, which
+         Windows allows for a running exe; the binaries delete those copies at their next start. Before
+         InstallValidate, where the files-in-use check happens. ponytail: a console window flashes; a failed install
+         after it leaves only the .old copies (rerun the MSI). -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <CustomAction Id="SetAside" Directory="LocalAppDataFolder" Execute="immediate" Return="ignore"
+                  ExeCommand='"[System64Folder]cmd.exe" /d /c for %f in (pa.exe pa-mcp.exe pa-cli.exe) do @if exist "[INSTALLFOLDER]%f" move /y "[INSTALLFOLDER]%f" "[INSTALLFOLDER]%f.%RANDOM%.old"' />
+    <InstallExecuteSequence>
+      <Custom Action="SetAside" After="CostFinalize" />
+    </InstallExecuteSequence>
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="ProjectArchitect" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main">
+      <Component Id="pa" Directory="INSTALLFOLDER" Guid="72e3b925-8b61-495f-9ce8-d5750cf8d281">
+        <File Id="pa.exe" Source="$(var.Bin)\pa.exe" KeyPath="no" />
+        <RegistryValue Root="HKCU" Key="Software\ProjectArchitect\Install" Name="pa" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+      <Component Id="pa_mcp" Directory="INSTALLFOLDER" Guid="09cda41d-4341-4c3b-9951-eb7c3476240b">
+        <File Id="pa_mcp.exe" Source="$(var.Bin)\pa-mcp.exe" KeyPath="no" />
+        <RegistryValue Root="HKCU" Key="Software\ProjectArchitect\Install" Name="pa-mcp" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="pa_cli" Directory="INSTALLFOLDER" Guid="30770546-2222-44de-b140-a007a64061cf">
+        <File Id="pa_cli.exe" Source="$(var.Bin)\pa-cli.exe" KeyPath="no" />
+        <RegistryValue Root="HKCU" Key="Software\ProjectArchitect\Install" Name="pa-cli" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="StartMenu" Directory="ProgramMenuFolder">
+        <Shortcut Id="StartMenuShortcut" Name="ProjectArchitect" Target="[#pa.exe]" WorkingDirectory="INSTALLFOLDER" Icon="pa.ico" />
+        <RegistryValue Root="HKCU" Key="Software\ProjectArchitect\Install" Name="shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
